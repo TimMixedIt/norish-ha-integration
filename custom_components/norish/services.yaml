@@ -1,0 +1,49 @@
+call_api:
+  name: Call API
+  description: Call any Norish OpenAPI endpoint. Use this to access newly added Norish functions without waiting for an integration update.
+  fields:
+    method:
+      required: true
+      selector:
+        select:
+          options: [GET, POST, PUT, PATCH, DELETE]
+    path:
+      required: true
+      example: /api/v1/recipes
+      selector:
+        text:
+    body:
+      required: false
+      selector:
+        object:
+    query:
+      required: false
+      selector:
+        object:
+refresh_openapi:
+  name: Refresh OpenAPI
+  description: Refresh Norish's OpenAPI document and return all discovered operations.
+create_recipe:
+  name: Create recipe
+  description: Create a recipe through the Norish recipe creation endpoint advertised by OpenAPI.
+  fields:
+    body:
+      required: true
+      selector:
+        object:
+import_recipe:
+  name: Import recipe
+  description: Import a recipe through the Norish recipe import endpoint advertised by OpenAPI.
+  fields:
+    body:
+      required: true
+      selector:
+        object:
+add_grocery_item:
+  name: Add grocery item
+  description: Add a grocery item through the Norish grocery endpoint advertised by OpenAPI.
+  fields:
+    body:
+      required: true
+      selector:
+        object:
