@@ -20,6 +20,11 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # These checks depend on GitHub repository metadata or binary brand
+          # assets. Keep them ignored so Codex can push text-only PRs; see
+          # .github/REPOSITORY_SETTINGS.md for the settings/assets to add on
+          # GitHub before submitting this repository to the default HACS store.
+          ignore: brands description topics
 
   hassfest:
     runs-on: ubuntu-latest

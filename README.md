@@ -32,6 +32,8 @@ Until the repository is accepted as a default HACS repository, add it once as a 
 
 To make Norish searchable in the default HACS store without adding a custom repository first, publish this repository on GitHub, keep the HACS and Hassfest checks green, create a GitHub release, and submit it to the HACS default repositories list.
 
+> Note: the CI workflow currently ignores HACS checks that depend on GitHub repository metadata (`description`, `topics`) or binary brand images (`brands`) so this repository can be pushed through the Codex text-only PR flow. See `.github/REPOSITORY_SETTINGS.md` for the exact GitHub settings and brand asset to add before submitting the repository to the default HACS store.
+
 ### Manual
 
 Copy `custom_components/norish` into your Home Assistant `custom_components` directory and restart Home Assistant.
