@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
@@ -101,6 +102,9 @@ class NorishApiClient:
         try:
             async with self._session.request(
                 method,
+        try:
+            async with self._session.request(
+                method.upper(),
                 self._url(path),
                 headers=self.headers,
                 json=json,
@@ -148,6 +152,12 @@ class NorishApiClient:
             if path not in seen:
                 seen.add(path)
                 yield path
+
+            document = await self.request("GET", self.openapi_path)
+            if not isinstance(document, dict):
+                raise NorishApiError("Norish OpenAPI response is not a JSON object")
+            self._openapi = document
+        return self._openapi
 
     async def discover_operations(self) -> dict[str, NorishOperation]:
         """Return all operations from the OpenAPI document keyed by operation id."""
@@ -306,3 +316,34 @@ def _unwrap_items(value: Any) -> list[Any]:
             if isinstance(nested, list):
                 return nested
     return []
+    async def get_collection(self, *tokens: str) -> Any:
+        """Fetch a collection endpoint discovered from OpenAPI."""
+        operation = await self.find_operation(*tokens, method="GET")
+        if operation is None or "{" in operation.path:
+            return None
+        return await self.request(operation.method, operation.path)
+
+    async def create_recipe(self, payload: Mapping[str, Any]) -> Any:
+        """Create a recipe via the first matching Norish endpoint."""
+        operation = await self.find_operation("recipe", "create", method="POST")
+        if operation is None:
+            operation = await self.find_operation("recipes", method="POST")
+        if operation is None:
+            raise NorishApiError("No recipe creation endpoint was advertised by Norish")
+        return await self.request(operation.method, operation.path, json=dict(payload))
+
+    async def import_recipe(self, payload: Mapping[str, Any]) -> Any:
+        """Import a recipe via URL/text/image/video if Norish advertises such an endpoint."""
+        operation = await self.find_operation("recipe", "import", method="POST")
+        if operation is None:
+            raise NorishApiError("No recipe import endpoint was advertised by Norish")
+        return await self.request(operation.method, operation.path, json=dict(payload))
+
+    async def add_grocery_item(self, payload: Mapping[str, Any]) -> Any:
+        """Add a grocery item via the first matching Norish endpoint."""
+        operation = await self.find_operation("grocery", "create", method="POST")
+        if operation is None:
+            operation = await self.find_operation("groceries", method="POST")
+        if operation is None:
+            raise NorishApiError("No grocery creation endpoint was advertised by Norish")
+        return await self.request(operation.method, operation.path, json=dict(payload))

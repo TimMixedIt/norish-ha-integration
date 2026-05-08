@@ -44,6 +44,7 @@ class NorishConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             try:
                 await client.health()
+                await client.openapi()
             except NorishApiError:
                 errors["base"] = "cannot_connect"
             else:

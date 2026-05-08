@@ -123,3 +123,9 @@ class NorishCollectionCountSensor(NorishBaseSensor):
         if self._key not in errors:
             return None
         return {"skipped_reason": errors[self._key]}
+    def available(self) -> bool:
+        return super().available and self.coordinator.collection_count(self._key) is not None
+
+    @property
+    def native_value(self) -> int | None:
+        return self.coordinator.collection_count(self._key)
