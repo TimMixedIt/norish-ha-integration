@@ -36,6 +36,21 @@ COLLECTIONS: tuple[NorishCollectionEndpoint, ...] = (
 )
 
 
+from .api import NorishApiClient, NorishApiError, NorishOperation
+from .const import DOMAIN
+
+COLLECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("recipes", ("recipes",)),
+    ("groceries", ("groceries",)),
+    ("stores", ("stores",)),
+    ("households", ("households",)),
+    ("favorites", ("favorites",)),
+    ("ratings", ("ratings",)),
+    ("calendar", ("calendar",)),
+    ("permissions", ("permissions",)),
+    ("shares", ("share",)),
+)
+
 class NorishDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Keep Norish API state fresh."""
 
@@ -83,6 +98,19 @@ class NorishDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "collections": collections,
                 "collection_errors": skipped,
                 "openapi_error": openapi_error,
+        try:
+            health = await self.client.health()
+            self.operations = await self.client.discover_operations()
+            collections: dict[str, Any] = {}
+            for key, tokens in COLLECTIONS:
+                try:
+                    collections[key] = await self.client.get_collection(*tokens)
+                except NorishApiError as exc:
+                    self.logger.debug("Skipping Norish %s collection: %s", key, exc)
+                    collections[key] = None
+            return {
+                "health": health,
+                "collections": collections,
                 "operation_count": len(self.operations),
             }
         except NorishApiError as exc:
@@ -93,6 +121,7 @@ class NorishDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return (self.data or {}).get("collections", {}).get(key)
 
     def collection_count(self, key: str) -> int:
+    def collection_count(self, key: str) -> int | None:
         """Return a count for a cached collection."""
         value = self.collection(key)
         return count_items(value)
@@ -116,6 +145,14 @@ def count_items(value: Any) -> int:
             "plannedRecipes",
             "planned_recipes",
         ):
+def count_items(value: Any) -> int | None:
+    """Count items in common API collection shapes."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, Mapping):
+        for key in ("items", "data", "results", "recipes", "groceries", "stores", "events"):
             nested = value.get(key)
             if isinstance(nested, list):
                 return len(nested)
@@ -124,3 +161,4 @@ def count_items(value: Any) -> int:
             if isinstance(nested, int):
                 return nested
     return 0
+    return None

@@ -20,7 +20,7 @@ from .const import (
     DOMAIN,
 )
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class NorishConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a Norish config flow."""
 
     VERSION = 1
@@ -44,6 +44,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             try:
                 await client.health()
+                await client.openapi()
             except NorishApiError:
                 errors["base"] = "cannot_connect"
             else:
