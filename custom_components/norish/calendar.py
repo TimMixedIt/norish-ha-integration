@@ -63,6 +63,7 @@ def _events(value: Any) -> list[CalendarEvent]:
     for item in raw_items:
         if not isinstance(item, dict):
             continue
+        start = _parse_dt(item.get("start") or item.get("date") or item.get("plannedAt") or item.get("plannedDate"))
         start = _parse_dt(item.get("start") or item.get("date") or item.get("plannedAt"))
         if start is None:
             continue
@@ -71,6 +72,9 @@ def _events(value: Any) -> list[CalendarEvent]:
             item.get("summary")
             or item.get("title")
             or item.get("recipeName")
+            or item.get("name")
+            or (item.get("recipe") or {}).get("name")
+            or (item.get("recipe") or {}).get("title")
             or (item.get("recipe") or {}).get("name")
             or "Norish meal"
         )
@@ -81,6 +85,7 @@ def _unwrap_items(value: Any) -> list[Any] | None:
     if isinstance(value, list):
         return value
     if isinstance(value, dict):
+        for key in ("items", "data", "results", "events", "calendar", "plannedRecipes", "planned_recipes"):
         for key in ("items", "data", "results", "events", "calendar"):
             nested = value.get(key)
             if isinstance(nested, list):

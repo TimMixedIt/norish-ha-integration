@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import NorishApiError
 from .const import DOMAIN
 from .coordinator import NorishDataUpdateCoordinator
 
@@ -44,6 +45,9 @@ class NorishGroceryTodoList(CoordinatorEntity[NorishDataUpdateCoordinator], Todo
         }
 
     @property
+    def todo_items(self) -> list[TodoItem]:
+        groceries = self.coordinator.collection("groceries")
+        items = _unwrap_items(groceries) or []
     def todo_items(self) -> list[TodoItem] | None:
         groceries = self.coordinator.collection("groceries")
         items = _unwrap_items(groceries)
@@ -53,6 +57,7 @@ class NorishGroceryTodoList(CoordinatorEntity[NorishDataUpdateCoordinator], Todo
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a grocery item in Norish."""
+        await self.coordinator.client.add_grocery_item({"name": item.summary})
         await self.coordinator.client.add_grocery_item(
             {"name": item.summary, "checked": item.status == TodoItemStatus.COMPLETED}
         )
@@ -63,6 +68,23 @@ class NorishGroceryTodoList(CoordinatorEntity[NorishDataUpdateCoordinator], Todo
         uid = item.uid
         if not uid:
             return
+        item_data = _find_item(self.coordinator.collection("groceries"), uid)
+        body: dict[str, Any] = {}
+        if isinstance(item_data, dict) and item_data.get("version") is not None:
+            body["version"] = item_data["version"]
+        action = "done" if item.status == TodoItemStatus.COMPLETED else "undone"
+        path = f"/api/v1/groceries/{uid}/{action}"
+        try:
+            await self.coordinator.client.request("PATCH", path, json=body)
+        except NorishApiError:
+            operation = await self.coordinator.client.find_operation("grocery", action, method="PATCH")
+            if operation is None:
+                return
+            await self.coordinator.client.request(
+                operation.method,
+                _replace_path_id(operation.path, uid),
+                json=body,
+            )
         operation = await self.coordinator.client.find_operation("grocery", "update", method="PATCH")
         if operation is None:
             operation = await self.coordinator.client.find_operation("grocery", "update", method="PUT")
@@ -78,6 +100,23 @@ class NorishGroceryTodoList(CoordinatorEntity[NorishDataUpdateCoordinator], Todo
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete grocery items in Norish."""
+        for uid in uids:
+            item_data = _find_item(self.coordinator.collection("groceries"), uid)
+            body: dict[str, Any] = {}
+            if isinstance(item_data, dict) and item_data.get("version") is not None:
+                body["version"] = item_data["version"]
+            path = f"/api/v1/groceries/{uid}"
+            try:
+                await self.coordinator.client.request("DELETE", path, json=body or None)
+                continue
+            except NorishApiError:
+                operation = await self.coordinator.client.find_operation("grocery", "delete", method="DELETE")
+            if operation is not None:
+                await self.coordinator.client.request(
+                    operation.method,
+                    _replace_path_id(operation.path, uid),
+                    json=body or None,
+                )
         operation = await self.coordinator.client.find_operation("grocery", "delete", method="DELETE")
         if operation is None:
             return
@@ -96,6 +135,28 @@ def _unwrap_items(value: Any) -> list[Any] | None:
                 return nested
     return None
 
+def _find_item(value: Any, uid: str) -> dict[str, Any] | None:
+    for item in _unwrap_items(value) or []:
+        if isinstance(item, dict) and str(item.get("id") or item.get("uid") or item.get("key")) == uid:
+            return item
+    return None
+
+
+def _replace_path_id(path: str, uid: str) -> str:
+    return path.replace("{id}", uid).replace("{itemId}", uid).replace("{groceryId}", uid)
+
+
+def _todo_item(item: dict[str, Any]) -> TodoItem:
+    uid = str(item.get("id") or item.get("uid") or item.get("key") or item.get("name") or item)
+    summary = str(item.get("name") or item.get("title") or item.get("label") or uid)
+    done = bool(
+        item.get("checked")
+        or item.get("completed")
+        or item.get("done")
+        or item.get("isCompleted")
+        or item.get("completedAt")
+        or item.get("doneAt")
+    )
 def _todo_item(item: dict[str, Any]) -> TodoItem:
     uid = str(item.get("id") or item.get("uid") or item.get("key") or item.get("name") or item)
     summary = str(item.get("name") or item.get("title") or item.get("label") or uid)

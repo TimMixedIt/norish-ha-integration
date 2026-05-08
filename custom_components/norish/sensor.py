@@ -114,6 +114,15 @@ class NorishCollectionCountSensor(NorishBaseSensor):
         self._attr_name = label
 
     @property
+    def native_value(self) -> int:
+        return self.coordinator.collection_count(self._key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        errors = (self.coordinator.data or {}).get("collection_errors", {})
+        if self._key not in errors:
+            return None
+        return {"skipped_reason": errors[self._key]}
     def available(self) -> bool:
         return super().available and self.coordinator.collection_count(self._key) is not None
 
